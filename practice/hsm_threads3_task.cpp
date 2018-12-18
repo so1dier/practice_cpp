@@ -17,11 +17,11 @@ std::vector<std::string> logMessages;
 //std::thread loggerThread 
 //{ 
 //    []()
-void SocketThread()
+void SocketThread(const std::string ip, const int port, const int timeout)
     {
-        std::string ip = "127.0.0.1";
-        int port = 8888;
-        int timeout = 10000;
+        //std::string ip = "127.0.0.1";
+        //int port = 8888;
+        //int timeout = 10000;
         Socket socket(ip, port, timeout);
 
         while(!terminateLoggerThread)
@@ -53,7 +53,7 @@ void SocketThread()
     }
 //};
 
-std::thread loggerThread(SocketThread);
+std::thread loggerThread(SocketThread, "127.0.0.1", 8888, 10000);
 
 bool logMessage(std::string message)
 {
@@ -69,14 +69,14 @@ bool logMessage(std::string message)
 
 int main()
 {    
-    std::string ip = "127.0.0.1";
-    int port = 8888;
-    int timeout = 10000;
-    Socket socket(ip, port, timeout);
-
-    std::string request("request1");
-    std::string response;
-    socket.SendAndReceive(request, response);
+    //std::string ip = "127.0.0.1";
+    //int port = 8888;
+    //int timeout = 10000;
+    //Socket socket(ip, port, timeout);
+    // 
+    //std::string request("request1");
+    //std::string response;
+    //socket.SendAndReceive(request, response);
 
 
     logMessage("request1");
