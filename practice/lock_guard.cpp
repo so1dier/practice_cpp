@@ -8,7 +8,7 @@ std::mutex mtx;
 
 void print(const std::string& s)
 {
-    //std::lock_guard<std::mutex> lock(mtx);
+    std::lock_guard<std::mutex> lock(mtx);
     for (char c : s)
     {
         std::cout.put(c);

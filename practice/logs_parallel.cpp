@@ -3,8 +3,8 @@
 #include <thread>
 #include <mutex>
 #include <vector>
-#include <condition_variable>
 #include <chrono>
+#include <condition_variable>
 
 bool terminateLoggerThread = false;
 std::mutex logMessagesMutex;
