@@ -15,8 +15,6 @@ std::mutex mtx_print_out;
 std::mutex mtx_reply;
 std::vector<std::string> messages_out;
 std::vector<std::string> messages_in;
-bool status_1 = false;
-std::mutex mtx_status_1;
 
 void log(const std::string message)
 {
@@ -39,15 +37,6 @@ void log(const std::string message)
         std::cout << buffer << "." << millis << " " << message << std::endl;
         mtx_print_out.unlock();
      }
-}
-
-bool GetStatus1()
-{
-    mtx_status_1.lock();
-    status_1 = !status_1;
-    auto local_status_1 = status_1;
-    mtx_status_1.unlock();
-    return local_status_1;
 }
 
 void SocketThread(const std::string ip, int port, int timeout)
@@ -112,7 +101,6 @@ void ReceiveReply(std::string& reply, int timeout)
                 reply = message;
                 mtx_reply.unlock();
                 LOG("Received a reply : " + reply);
-
                 received = true;
             }
         }
@@ -125,7 +113,7 @@ int main()
 {
     int timeout = 10000;
     std::thread t1(SocketThread,"127.0.0.1", 8888, timeout);
-    std::thread t2(SocketThread,"127.0.0.1", 8889, timeout);
+    //std::thread t2(SocketThread,"127.0.0.1", 8889, timeout);
 
     auto now = std::chrono::system_clock::now();
     auto ttl = now + std::chrono::milliseconds(timeout);
@@ -134,25 +122,16 @@ int main()
     while(ttl > std::chrono::system_clock::now())
     {
         std::string request("request" + std::to_string(counter));
-        auto local_status_1 = GetStatus1();
-        if (local_status_1)
-        {
-            SendMessage(request);
-            std::string response;
-            ReceiveReply(response, timeout);
-            mtx_reply.lock();
-            LOG("This is a reply in main: " + response);
-            mtx_reply.unlock();
-            ++counter;
-        }
-        else
-        {
-            LOG("Status1 is bad, looking for next one...");
-        }
-        
+        SendMessage(request);
+        std::string response;
+        ReceiveReply(response, timeout);
+        mtx_reply.lock();
+        LOG("This is a reply in main: " + response);
+        mtx_reply.unlock();
+        ++counter;
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 
     t1.join();
-    t2.join();
+    //t2.join();
 }
