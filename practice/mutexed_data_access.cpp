@@ -6,17 +6,68 @@
 #include <sstream>
 #include <sys/time.h>
 
-
 #define LOG(message) log(std::string(__FUNCTION__) + "(): " + message)
 
-std::mutex mtx_messages_out;
-std::mutex mtx_messages_in;
 std::mutex mtx_print_out;
 std::mutex mtx_reply;
-std::vector<std::string> messages_out;
-std::vector<std::string> messages_in;
-bool status_1 = false;
-std::mutex mtx_status_1;
+
+class Data
+{
+public:
+    std::vector<std::string>& GetMessagesIn();
+    std::vector<std::string>& GetMessagesOut();
+    void SetMessagesIn(const std::string message);
+    void SetMessagesOut(const std::string message);
+    bool GetStatus();
+    void SetStatus(bool status);
+private:
+    std::mutex mtx_messages_out;
+    std::mutex mtx_messages_in;
+    std::vector<std::string> messages_out;
+    std::vector<std::string> messages_in;
+    bool m_status = false;
+    std::mutex mtx_status;
+};
+
+std::vector<std::string>& Data::GetMessagesIn()
+{
+    std::unique_lock<std::mutex> l(mtx_messages_in);
+    return messages_in;
+}
+
+std::vector<std::string>& Data::GetMessagesOut()
+{
+    std::unique_lock<std::mutex> l(mtx_messages_out);
+    return messages_out;
+}
+
+void Data::SetMessagesIn(const std::string message)
+{
+    std::unique_lock<std::mutex> l(mtx_messages_in);
+    messages_in.push_back(message);
+}
+
+void Data::SetMessagesOut(const std::string message)
+{
+    std::unique_lock<std::mutex> l(mtx_messages_out);
+    messages_out.push_back(message);
+}
+
+bool Data::GetStatus()
+{
+    std::unique_lock<std::mutex> l(mtx_status);
+    m_status = !m_status;
+    return m_status;
+}
+
+void Data::SetStatus(bool status)
+{
+    std::unique_lock<std::mutex> l(mtx_status);
+    m_status = status;
+}
+
+Data data;
+
 
 void log(const std::string message)
 {
@@ -41,14 +92,6 @@ void log(const std::string message)
      }
 }
 
-bool GetStatus1()
-{
-    mtx_status_1.lock();
-    status_1 = !status_1;
-    auto local_status_1 = status_1;
-    mtx_status_1.unlock();
-    return local_status_1;
-}
 
 void SocketThread(const std::string ip, int port, int timeout)
 {
@@ -64,18 +107,14 @@ void SocketThread(const std::string ip, int port, int timeout)
 
     while(ttl > std::chrono::system_clock::now())
     {
-        mtx_messages_out.lock();
-        auto local_messages_out = std::move(messages_out);
-        //messages_out = {};
-        mtx_messages_out.unlock();
-        if(local_messages_out.empty() == false)
+        auto local_messages_out = std::move(data.GetMessagesOut());
+
+        if (local_messages_out.empty() == false)
         {
             for(auto message : local_messages_out)
             {
                 LOG("sending message: " + message);
-                mtx_messages_in.lock();
-                messages_in.push_back("OK..." + message);
-                mtx_messages_in.unlock();
+                data.SetMessagesIn("OK..." + message);
             }
         }
     }
@@ -85,10 +124,8 @@ void SocketThread(const std::string ip, int port, int timeout)
 
 void SendMessage(std::string message)
 {
-    mtx_messages_out.lock();
     LOG("Adding message into the vector: ");
-    messages_out.push_back(message);
-    mtx_messages_out.unlock();
+    data.SetMessagesOut(message);
 }
 
 void ReceiveReply(std::string& reply, int timeout)
@@ -98,10 +135,7 @@ void ReceiveReply(std::string& reply, int timeout)
     auto ttl = std::chrono::system_clock::now() + std::chrono::milliseconds(timeout);
     while(ttl > std::chrono::system_clock::now() && received == false)
     {
-        mtx_messages_in.lock();
-        auto local_messages_in = std::move(messages_in);
-        //messages_in = {};
-        mtx_messages_in.unlock();
+        auto local_messages_in = std::move(data.GetMessagesIn());
 
         if(local_messages_in.empty() == false)
         {
@@ -125,7 +159,7 @@ int main()
 {
     int timeout = 10000;
     std::thread t1(SocketThread,"127.0.0.1", 8888, timeout);
-    std::thread t2(SocketThread,"127.0.0.1", 8889, timeout);
+    //std::thread t2(SocketThread,"127.0.0.1", 8889, timeout);
 
     auto now = std::chrono::system_clock::now();
     auto ttl = now + std::chrono::milliseconds(timeout);
@@ -134,7 +168,7 @@ int main()
     while(ttl > std::chrono::system_clock::now())
     {
         std::string request("request" + std::to_string(counter));
-        auto local_status_1 = GetStatus1();
+        auto local_status_1 = data.GetStatus();
         if (local_status_1)
         {
             SendMessage(request);
@@ -154,5 +188,5 @@ int main()
     }
 
     t1.join();
-    t2.join();
+    //t2.join();
 }
