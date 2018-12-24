@@ -6,11 +6,13 @@
 #include <queue>
 #include <string>
 
-std::queue<int> queue_in;
+#include "Socket.h"
+
+std::queue<std::string> queue_in;
 std::mutex mtx_queue_in;
 std::condition_variable cv_queue_in;
 
-std::queue<int> queue_out;
+std::queue<std::string> queue_out;
 std::mutex mtx_queue_out;
 std::condition_variable cv_queue_out;
 
@@ -29,42 +31,48 @@ void provider_out(int val)
 {
     for (int i=0; i<6; ++i)
     {
+        std::string request("request" + std::to_string(val+i));
         std::lock_guard<std::mutex> lg(mtx_queue_out);
-        queue_out.push(val+i);
+        queue_out.push(request);
     }
     cv_queue_out.notify_one();
 
     //std::this_thread::sleep_for(std::chrono::milliseconds(val));
 }
 
-void provider_in(int val)
+void provider_in(std::string response)
 {
     {
         std::lock_guard<std::mutex> lg(mtx_queue_in);
-        queue_in.push(val);
+        queue_in.push(response);
     }
     cv_queue_in.notify_one();
 
     //std::this_thread::sleep_for(std::chrono::milliseconds(val));
 }
 
-void consumer_out(int num)
+void consumer_out(int num, int port)
 {
+    const std::string ip("127.0.0.1"); 
+    const int timeout = 10000;
+    Socket s(ip, port, timeout);
     while(true)
     {
         int val;
+        std::string request;
         {
             std::unique_lock<std::mutex> ul(mtx_queue_out);
             //if(cv_queue_out.wait_for(ul, std::chrono::milliseconds(500), []{ return !queue_out.empty();}))
             cv_queue_out.wait(ul, []{ return !queue_out.empty();});
             {
-                val = queue_out.front();
+                std::string request = queue_out.front();
                 queue_out.pop();
-                provider_in(val);
+                std::string response;
+                s.SendAndReceive(request, response);
+                provider_in(response);
             }
         }
-        //std::cout <<__FUNCTION__ << " " << num << ": " << val << std::endl;
-        write(std::string(__FUNCTION__) + " " + std::to_string(num) + ": " + std::to_string(val));
+        write(std::string(__FUNCTION__) + " " + std::to_string(num) + ": " + request);
     }
 }
 
@@ -73,29 +81,29 @@ void consumer_in(int num)
 {
     while(true)
     {
-        int val;
+        std::string response;
         {
             std::unique_lock<std::mutex> ul(mtx_queue_in);
             cv_queue_in.wait(ul, []{ return !queue_in.empty();});
             {
-                val = queue_in.front();
+                response = queue_in.front();
                 queue_in.pop();
             }
         }
-        //std::cout << __FUNCTION__ << " " << num << ": " << val << std::endl;
-        //write(__FUNCTION__ + " " + num + ": " + val);
-        write(std::string(__FUNCTION__) + " " + std::to_string(num) + ": " + std::to_string(val));
+        write(std::string(__FUNCTION__) + " " + std::to_string(num) + ": " + response);
     }
 }
 
 int main()
 {
     auto p1 = std::async(std::launch::async, provider_out,100);
-    auto p2 = std::async(std::launch::async, provider_out,300);
-    auto p3 = std::async(std::launch::async, provider_out,500);
+    auto p2 = std::async(std::launch::async, provider_out,200);
+    auto p3 = std::async(std::launch::async, provider_out,300);
+    auto p4 = std::async(std::launch::async, provider_out,400);
+    auto p5 = std::async(std::launch::async, provider_out,500);
 
-    auto c1 = std::async(std::launch::async, consumer_out,1);
-    auto c2 = std::async(std::launch::async, consumer_out,2);
+    auto c1 = std::async(std::launch::async, consumer_out,1, 8888);
+    auto c2 = std::async(std::launch::async, consumer_out,2, 8889);
 
     auto ci1 = std::async(std::launch::async, consumer_in, 1);
     auto ci2 = std::async(std::launch::async, consumer_in, 2);
