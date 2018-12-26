@@ -20,12 +20,17 @@ Socket::Socket(const std::string& ip, const int port, int timeout)
     {
         m_timeout = DEFAULT_TIMEOUT;
     }
-    ConnectToServer(); 
+    m_connected = ConnectToServer(); 
 }
 
 Socket::~Socket()
 { 
     CloseSocket(); 
+}
+
+bool Socket::IsConnected()
+{
+    return m_connected;
 }
 
 bool Socket::ConnectToServer()
@@ -78,6 +83,12 @@ bool Socket::ConnectToServer()
 
 bool Socket::SendAndReceive(const std::string& request, std::string& response)
 {
+    if (!m_connected)
+    {
+        printf("ERROR calling %s when not connected", __FUNCTION__);
+        return false;
+    }
+
     if (m_sockfd < 0)
     {
         printf("ERROR opening socket\n");

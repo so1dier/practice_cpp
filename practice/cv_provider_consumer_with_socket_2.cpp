@@ -64,7 +64,7 @@ void consumer_out(int num, int port)
         {
             std::unique_lock<std::mutex> ul(mtx_queue_out);
             //if(cv_queue_out.wait_for(ul, std::chrono::milliseconds(500), []{ return !queue_out.empty();}))
-            cv_queue_out.wait(ul, []{ return !queue_out.empty();});
+            cv_queue_out.wait(ul, [&]{ return !queue_out.empty() && s.IsConnected();});
             {
                 std::string request = queue_out.front();
                 queue_out.pop();
